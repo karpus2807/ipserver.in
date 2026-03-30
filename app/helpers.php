@@ -129,6 +129,8 @@ function render_guest_header(string $title, string $tagline): void
 
 function render_app_header(string $title, array $currentUser, bool $isAdmin): void
 {
+    $isStaff = is_staff_user($currentUser);
+    $userLabel = $isStaff ? 'Staff' : ucfirst((string) ($currentUser['role'] ?? 'User'));
     ?>
     <header class="site-header">
         <a href="<?= route_url('dashboard') ?>" class="brand">
@@ -142,13 +144,18 @@ function render_app_header(string $title, array $currentUser, bool $isAdmin): vo
             <a href="<?= route_url('dashboard') ?>">Dashboard</a>
             <?php if ($isAdmin): ?>
                 <a href="<?= route_url('users') ?>">Users</a>
+            <?php endif; ?>
+            <?php if ($isStaff): ?>
                 <a href="<?= route_url('inventory') ?>">Inventory</a>
+                <a href="<?= route_url('inventory-update') ?>">Inventory Update</a>
+            <?php endif; ?>
+            <?php if ($isAdmin): ?>
                 <a href="<?= route_url('issue') ?>">Issue Centre</a>
             <?php endif; ?>
         </nav>
         <div class="user-chip">
             <span><?= e($currentUser['name']) ?></span>
-            <small><?= e(ucfirst($currentUser['role'])) ?></small>
+            <small><?= e($userLabel) ?></small>
             <a href="<?= route_url('logout') ?>">Logout</a>
         </div>
     </header>
@@ -160,14 +167,77 @@ function render_footer(): void
     echo '<footer class="site-footer">Built for secure lab inventory operations on ipserver.in</footer>';
 }
 
-function department_options(): array
+function is_staff_user(?array $user = null): bool
 {
-    return ['Computer Science', 'Electronics', 'Mechanical', 'Civil', 'Physics Lab', 'Chemistry Lab', 'Administration'];
+    $user ??= current_user();
+
+    if ($user === null) {
+        return false;
+    }
+
+    $role = strtolower(trim((string) ($user['role'] ?? '')));
+    $category = strtolower(trim((string) ($user['year_level'] ?? '')));
+    $department = strtolower(trim((string) ($user['department'] ?? '')));
+    $enrollment = strtoupper(trim((string) ($user['enrollment_no'] ?? '')));
+
+    return $role === 'admin'
+        || $category === 'staff'
+        || $department === 'administration'
+        || str_starts_with($enrollment, 'ADMIN-');
 }
 
-function year_options(): array
+function can_manage_inventory(?array $user = null): bool
 {
-    return ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Semester', '6th Semester', '7th Semester', '8th Semester', 'Staff'];
+    return is_staff_user($user);
+}
+
+function debug_enabled(): bool
+{
+    return (bool) app_config()['debug'];
+}
+
+function log_debug_exception(Throwable $exception, array $context = []): string
+{
+    $reference = 'DBG-' . strtoupper(bin2hex(random_bytes(4)));
+    $payload = [
+        'reference' => $reference,
+        'time' => date('c'),
+        'message' => $exception->getMessage(),
+        'file' => $exception->getFile(),
+        'line' => $exception->getLine(),
+        'trace' => $exception->getTraceAsString(),
+        'context' => $context,
+    ];
+
+    file_put_contents(
+        ensure_storage_path() . '/debug.log',
+        json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . PHP_EOL,
+        FILE_APPEND
+    );
+
+    return $reference;
+}
+
+function flash_exception(string $fallbackMessage, Throwable $exception, array $context = []): void
+{
+    $reference = log_debug_exception($exception, $context);
+    $message = $fallbackMessage . ' Reference: ' . $reference;
+
+    if (debug_enabled()) {
+        $message .= ' Details: ' . $exception->getMessage();
+    }
+
+    flash('error', $message);
+}
+
+function department_options(): array
+{
+    return ['Computer Science and Engineering(CSE)', 'Electrical Engineering', 'Electronics Engineering', 'Mechanical Engineering', 'Civil Engineering', 'Administration'];
+}
+
+function category_options(): array
+{
+    return ['Student', 'Staff'];
 }
 
 function inventory_categories(): array
@@ -233,14 +303,147 @@ function student_users(): array
     return $stmt->fetchAll();
 }
 
-function all_inventory_items(): array
+function all_inventory_items(?string $search = null): array
 {
-    return db()->query('SELECT * FROM inventory_items ORDER BY created_at DESC')->fetchAll();
+    $search = trim((string) $search);
+
+    if ($search === '') {
+        return db()->query('SELECT * FROM inventory_items ORDER BY created_at DESC')->fetchAll();
+    }
+
+    $stmt = db()->prepare(
+        "SELECT *
+         FROM inventory_items
+         WHERE invt_ctrl_no LIKE :search
+            OR item_description LIKE :search
+            OR item_long_description LIKE :search
+            OR item_name LIKE :search
+            OR item_code LIKE :search
+         ORDER BY created_at DESC"
+    );
+    $stmt->execute(['search' => '%' . $search . '%']);
+    return $stmt->fetchAll();
 }
 
 function available_inventory_items(): array
 {
-    return db()->query("SELECT * FROM inventory_items WHERE status = 'available' ORDER BY item_name ASC")->fetchAll();
+    return db()->query("SELECT * FROM inventory_items WHERE status = 'available' ORDER BY item_description ASC, item_name ASC")->fetchAll();
+}
+
+function inventory_item_by_id(int $id): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM inventory_items WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function inventory_payload_from_form(array $input): array
+{
+    return [
+        's_no' => trim((string) ($input['s_no'] ?? '')),
+        'item_code' => trim((string) ($input['item_code'] ?? '')),
+        'item_name' => trim((string) ($input['item_name'] ?? '')),
+        'item_description' => trim((string) ($input['item_description'] ?? '')),
+        'item_long_description' => trim((string) ($input['item_long_description'] ?? '')),
+        'category' => trim((string) ($input['category'] ?? 'Other')),
+        'quantity' => trim((string) ($input['quantity'] ?? '')),
+        'unit' => trim((string) ($input['unit'] ?? '')),
+        'value_text' => trim((string) ($input['value_text'] ?? '')),
+        'net_eff_value' => trim((string) ($input['net_eff_value'] ?? '')),
+        'invt_ctrl_no' => trim((string) ($input['invt_ctrl_no'] ?? '')),
+        'department_name' => trim((string) ($input['department_name'] ?? '')),
+        'issued_to' => trim((string) ($input['issued_to'] ?? '')),
+        'issue_type' => trim((string) ($input['issue_type'] ?? '')),
+        'lab_code' => trim((string) ($input['lab_code'] ?? '')),
+        'gis_no' => trim((string) ($input['gis_no'] ?? '')),
+        'gis_date' => trim((string) ($input['gis_date'] ?? '')),
+        'nc_no' => trim((string) ($input['nc_no'] ?? '')),
+        'nc_date' => trim((string) ($input['nc_date'] ?? '')),
+        'source_name' => trim((string) ($input['source_name'] ?? '')),
+        'qr_view' => trim((string) ($input['qr_view'] ?? '')),
+        'brand' => trim((string) ($input['brand'] ?? '')),
+        'serial_number' => trim((string) ($input['serial_number'] ?? '')),
+        'status' => trim((string) ($input['status'] ?? 'available')),
+        'location' => trim((string) ($input['location'] ?? '')),
+        'notes' => trim((string) ($input['notes'] ?? '')),
+    ];
+}
+
+function validate_inventory_payload(array $payload): void
+{
+    if ($payload['invt_ctrl_no'] === '') {
+        throw new RuntimeException('Inventory control number is required.');
+    }
+
+    if ($payload['item_code'] === '') {
+        throw new RuntimeException('Item code is required.');
+    }
+
+    if ($payload['item_description'] === '' && $payload['item_name'] === '') {
+        throw new RuntimeException('At least one item title field is required.');
+    }
+}
+
+function save_inventory_item(array $payload, ?int $id = null): void
+{
+    validate_inventory_payload($payload);
+
+    $sqlPayload = $payload;
+    $sqlPayload['item_name'] = $sqlPayload['item_name'] !== '' ? $sqlPayload['item_name'] : $sqlPayload['item_description'];
+
+    if ($id === null) {
+        $stmt = db()->prepare(
+            'INSERT INTO inventory_items
+            (s_no, item_code, item_name, item_description, item_long_description, category, quantity, unit, value_text, net_eff_value,
+             invt_ctrl_no, department_name, issued_to, issue_type, lab_code, gis_no, gis_date, nc_no, nc_date, source_name, qr_view,
+             brand, serial_number, status, location, notes)
+             VALUES
+            (:s_no, :item_code, :item_name, :item_description, :item_long_description, :category, :quantity, :unit, :value_text, :net_eff_value,
+             :invt_ctrl_no, :department_name, :issued_to, :issue_type, :lab_code, :gis_no, :gis_date, :nc_no, :nc_date, :source_name, :qr_view,
+             :brand, :serial_number, :status, :location, :notes)'
+        );
+        $stmt->execute($sqlPayload);
+        return;
+    }
+
+    $sqlPayload['id'] = $id;
+    $stmt = db()->prepare(
+        'UPDATE inventory_items SET
+            s_no = :s_no,
+            item_code = :item_code,
+            item_name = :item_name,
+            item_description = :item_description,
+            item_long_description = :item_long_description,
+            category = :category,
+            quantity = :quantity,
+            unit = :unit,
+            value_text = :value_text,
+            net_eff_value = :net_eff_value,
+            invt_ctrl_no = :invt_ctrl_no,
+            department_name = :department_name,
+            issued_to = :issued_to,
+            issue_type = :issue_type,
+            lab_code = :lab_code,
+            gis_no = :gis_no,
+            gis_date = :gis_date,
+            nc_no = :nc_no,
+            nc_date = :nc_date,
+            source_name = :source_name,
+            qr_view = :qr_view,
+            brand = :brand,
+            serial_number = :serial_number,
+            status = :status,
+            location = :location,
+            notes = :notes
+         WHERE id = :id'
+    );
+    $stmt->execute($sqlPayload);
+}
+
+function delete_inventory_item(int $id): void
+{
+    $stmt = db()->prepare('DELETE FROM inventory_items WHERE id = :id');
+    $stmt->execute(['id' => $id]);
 }
 
 function dashboard_stats(int $userId, bool $isAdmin): array
@@ -364,7 +567,7 @@ function request_issue(int $itemId, int $userId, int $issuedBy): void
     $item = $itemStmt->fetch();
 
     if (!$item) {
-        throw new RuntimeException('Selected item available nahi hai.');
+        throw new RuntimeException('The selected item is not currently available.');
     }
 
     $userStmt = db()->prepare('SELECT * FROM users WHERE id = :id');
@@ -413,11 +616,11 @@ function verify_issue_otp(int $transactionId, string $otp, int $userId): void
     }
 
     if ($transaction['issue_otp'] !== $otp) {
-        throw new RuntimeException('Entered OTP incorrect hai.');
+        throw new RuntimeException('The entered OTP is incorrect.');
     }
 
     if (strtotime((string) $transaction['issue_otp_expires_at']) < time()) {
-        throw new RuntimeException('OTP expire ho chuka hai. Admin se naya OTP resend karvayen.');
+        throw new RuntimeException('This OTP has expired. Please ask the administrator to resend it.');
     }
 
     db()->prepare(
@@ -443,7 +646,7 @@ function request_return(int $transactionId, int $userId): void
     $transaction = $stmt->fetch();
 
     if (!$transaction || $transaction['issue_status'] !== 'issued') {
-        throw new RuntimeException('Active issued inventory record nahi mila.');
+        throw new RuntimeException('No active issued inventory record was found.');
     }
 
     $otp = (string) random_int(100000, 999999);
@@ -479,11 +682,11 @@ function verify_return_otp(int $transactionId, string $otp, int $userId): void
     }
 
     if ($transaction['return_otp'] !== $otp) {
-        throw new RuntimeException('Entered return OTP incorrect hai.');
+        throw new RuntimeException('The entered return OTP is incorrect.');
     }
 
     if (strtotime((string) $transaction['return_otp_expires_at']) < time()) {
-        throw new RuntimeException('Return OTP expire ho chuka hai. Naya OTP request kijiye.');
+        throw new RuntimeException('This return OTP has expired. Please request a new one.');
     }
 
     db()->prepare(
@@ -499,22 +702,22 @@ function verify_return_otp(int $transactionId, string $otp, int $userId): void
 function import_inventory_csv(?array $file): void
 {
     if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        throw new RuntimeException('Valid CSV file upload kijiye.');
+        throw new RuntimeException('Please upload a valid CSV file.');
     }
 
     $handle = fopen((string) $file['tmp_name'], 'rb');
     if (!$handle) {
-        throw new RuntimeException('CSV read nahi ho pa rahi.');
+        throw new RuntimeException('The CSV file could not be read.');
     }
 
     $header = fgetcsv($handle);
     if (!$header) {
         fclose($handle);
-        throw new RuntimeException('CSV empty hai.');
+        throw new RuntimeException('The uploaded CSV file is empty.');
     }
 
     $header = array_map(static fn ($value) => strtolower(trim((string) $value)), $header);
-    $required = ['item_code', 'item_name', 'category', 'brand', 'serial_number', 'location', 'notes'];
+    $required = ['item code', 'item description', 'invt. ctrl no'];
 
     foreach ($required as $column) {
         if (!in_array($column, $header, true)) {
@@ -524,33 +727,70 @@ function import_inventory_csv(?array $file): void
     }
 
     $map = array_flip($header);
-    $stmt = db()->prepare(
-        'INSERT INTO inventory_items (item_code, item_name, category, brand, serial_number, location, notes)
-         VALUES (:item_code, :item_name, :category, :brand, :serial_number, :location, :notes)
-         ON DUPLICATE KEY UPDATE
-            item_name = VALUES(item_name),
-            category = VALUES(category),
-            brand = VALUES(brand),
-            serial_number = VALUES(serial_number),
-            location = VALUES(location),
-            notes = VALUES(notes)'
-    );
+
+    $rowNumber = 1;
+    $errors = [];
 
     while (($row = fgetcsv($handle)) !== false) {
+        $rowNumber++;
+
         if (count(array_filter($row, static fn ($value) => trim((string) $value) !== '')) === 0) {
             continue;
         }
 
-        $stmt->execute([
-            'item_code' => trim((string) ($row[$map['item_code']] ?? '')),
-            'item_name' => trim((string) ($row[$map['item_name']] ?? '')),
-            'category' => trim((string) ($row[$map['category']] ?? '')),
-            'brand' => trim((string) ($row[$map['brand']] ?? '')),
-            'serial_number' => trim((string) ($row[$map['serial_number']] ?? '')),
-            'location' => trim((string) ($row[$map['location']] ?? '')),
-            'notes' => trim((string) ($row[$map['notes']] ?? '')),
-        ]);
+        try {
+            $payload = [
+                's_no' => trim((string) ($row[$map['s.no.']] ?? '')),
+                'item_code' => trim((string) ($row[$map['item code']] ?? '')),
+                'item_name' => trim((string) ($row[$map['item description']] ?? '')),
+                'item_description' => trim((string) ($row[$map['item description']] ?? '')),
+                'item_long_description' => trim((string) ($row[$map['item long description']] ?? '')),
+                'category' => trim((string) ($row[$map['issue type']] ?? 'Imported')),
+                'quantity' => trim((string) ($row[$map['qnty']] ?? '')),
+                'unit' => trim((string) ($row[$map['unit']] ?? '')),
+                'value_text' => trim((string) ($row[$map['value']] ?? '')),
+                'net_eff_value' => trim((string) ($row[$map['net eff. value(inr)']] ?? '')),
+                'invt_ctrl_no' => trim((string) ($row[$map['invt. ctrl no']] ?? '')),
+                'department_name' => trim((string) ($row[$map['department name']] ?? '')),
+                'issued_to' => trim((string) ($row[$map['issued to']] ?? '')),
+                'issue_type' => trim((string) ($row[$map['issue type']] ?? '')),
+                'lab_code' => trim((string) ($row[$map['lab code']] ?? '')),
+                'gis_no' => trim((string) ($row[$map['gis no.']] ?? '')),
+                'gis_date' => trim((string) ($row[$map['gis date']] ?? '')),
+                'nc_no' => trim((string) ($row[$map['nc no.']] ?? '')),
+                'nc_date' => trim((string) ($row[$map['nc date']] ?? '')),
+                'source_name' => trim((string) ($row[$map['source']] ?? '')),
+                'qr_view' => trim((string) ($row[$map['qr view']] ?? '')),
+                'brand' => '',
+                'serial_number' => trim((string) ($row[$map['gis no.']] ?? '')),
+                'status' => trim((string) ($row[$map['issued to']] ?? '')) !== '' ? 'issued' : 'available',
+                'location' => trim((string) ($row[$map['lab code']] ?? '')),
+                'notes' => '',
+            ];
+
+            $existing = db()->prepare('SELECT id FROM inventory_items WHERE invt_ctrl_no = :invt_ctrl_no LIMIT 1');
+            $existing->execute(['invt_ctrl_no' => $payload['invt_ctrl_no']]);
+            $existingId = $existing->fetchColumn();
+
+            save_inventory_item($payload, $existingId ? (int) $existingId : null);
+        } catch (Throwable $exception) {
+            $errors[] = [
+                'row' => $rowNumber,
+                'message' => $exception->getMessage(),
+                'invt_ctrl_no' => trim((string) ($row[$map['invt. ctrl no']] ?? '')),
+            ];
+        }
     }
 
     fclose($handle);
+
+    if ($errors !== []) {
+        $reference = 'CSV-' . strtoupper(bin2hex(random_bytes(4)));
+        file_put_contents(
+            ensure_storage_path() . '/debug.log',
+            json_encode(['reference' => $reference, 'errors' => $errors], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL . PHP_EOL,
+            FILE_APPEND
+        );
+        throw new RuntimeException('CSV import completed with errors. Reference: ' . $reference);
+    }
 }

@@ -19,9 +19,9 @@ if ($route === 'login') {
         $remember = isset($_POST['remember']);
 
         if ($email === '' || $password === '') {
-            flash('error', 'Email aur password dono required hain.');
+            flash('error', 'Email and password are both required.');
         } elseif (attempt_login($email, $password, $remember)) {
-            flash('success', 'Welcome back. Session successfully start ho gaya.');
+            flash('success', 'Welcome back. Your session has started successfully.');
             redirect('dashboard');
         } else {
             flash('error', 'Invalid credentials. Please try again.');
@@ -33,15 +33,25 @@ if ($route === 'login') {
         ?>
         <section class="auth-shell">
             <div class="auth-card">
-                <div class="auth-copy">
-                    <span class="eyebrow">Secure Access</span>
-                    <h1>Lab portal me sign in kijiye</h1>
-                    <p>Sessions aur optional remember cookie ke saath fast login experience.</p>
-                    <ul class="feature-list">
-                        <li>OTP-based issue and return verification</li>
-                        <li>Student records + inventory lifecycle in one place</li>
-                        <li>Dropdown-driven forms for faster lab operations</li>
-                    </ul>
+                <div class="auth-showcase auth-showcase-login">
+                    <div class="showcase-orb orb-one"></div>
+                    <div class="showcase-orb orb-two"></div>
+                    <div class="showcase-grid"></div>
+                    <div class="showcase-content">
+                        <span class="eyebrow">Secure Access</span>
+                        <h1>Start inside a portal that feels alive</h1>
+                        <p>Designed for smoother sign-in, faster approvals, and a more polished lab experience from the first screen.</p>
+                        <div class="showcase-metrics">
+                            <article>
+                                <strong>OTP Flow</strong>
+                                <span>Issue and return approvals stay protected through email verification.</span>
+                            </article>
+                            <article>
+                                <strong>Smart Session</strong>
+                                <span>Persistent browser login reduces repeated sign-ins for daily lab work.</span>
+                            </article>
+                        </div>
+                    </div>
                 </div>
                 <form method="post" class="panel form-stack">
                     <?= csrf_field() ?>
@@ -52,7 +62,7 @@ if ($route === 'login') {
                         <span>Remember me on this browser</span>
                     </label>
                     <button type="submit" class="btn btn-primary">Sign In</button>
-                    <p class="muted">New student? <a href="<?= route_url('register') ?>">Create account</a></p>
+                    <p class="muted">New user? <a href="<?= route_url('register') ?>">Create account</a></p>
                 </form>
             </div>
         </section>
@@ -69,7 +79,7 @@ if ($route === 'register') {
             'email' => strtolower(trim((string) ($_POST['email'] ?? ''))),
             'password' => (string) ($_POST['password'] ?? ''),
             'department' => (string) ($_POST['department'] ?? ''),
-            'year_level' => (string) ($_POST['year_level'] ?? ''),
+            'year_level' => (string) ($_POST['category'] ?? ''),
             'enrollment_no' => trim((string) ($_POST['enrollment_no'] ?? '')),
             'phone' => trim((string) ($_POST['phone'] ?? '')),
         ];
@@ -82,29 +92,48 @@ if ($route === 'register') {
         if ($missing !== []) {
             flash('error', 'Please fill all required fields before registration.');
         } elseif (!filter_var($payload['email'], FILTER_VALIDATE_EMAIL)) {
-            flash('error', 'Valid email address enter kijiye.');
+            flash('error', 'Please enter a valid email address.');
         } elseif (strlen($payload['password']) < 8) {
-            flash('error', 'Password minimum 8 characters ka hona chahiye.');
+            flash('error', 'Password must be at least 8 characters long.');
         } else {
             try {
                 create_user($payload);
-                flash('success', 'Registration complete. Ab login karke dashboard open kijiye.');
+                flash('success', 'Registration completed. You can now log in.');
                 redirect('login');
             } catch (Throwable $exception) {
-                flash('error', $exception->getMessage());
+                flash_exception('Registration failed.', $exception, ['route' => 'register', 'email' => $payload['email']]);
             }
         }
     }
 
     render_page('register', function (): void {
-        render_guest_header('Register', 'Student self-registration for centralized lab records');
+        render_guest_header('Register', 'Self-registration for centralized lab records');
         ?>
         <section class="auth-shell">
             <div class="auth-card auth-card-wide">
-                <div class="auth-copy">
-                    <span class="eyebrow">Student Onboarding</span>
-                    <h1>Registration record ek baar me complete kijiye</h1>
-                    <p>Dropdown-led form se clean lab database maintain karna easy rahega.</p>
+                <div class="auth-showcase auth-showcase-register">
+                    <div class="showcase-orb orb-three"></div>
+                    <div class="showcase-orb orb-four"></div>
+                    <div class="showcase-grid"></div>
+                    <div class="showcase-content">
+                        <span class="eyebrow">User Onboarding</span>
+                        <h1>Register through a cleaner, more premium flow</h1>
+                        <p>Capture the right records with a guided layout that feels less like a form and more like a proper portal experience.</p>
+                        <div class="showcase-steps">
+                            <div>
+                                <span>01</span>
+                                <p>Select the correct department and category.</p>
+                            </div>
+                            <div>
+                                <span>02</span>
+                                <p>Fill in identity and contact details once.</p>
+                            </div>
+                            <div>
+                                <span>03</span>
+                                <p>Move directly into the student workflow after login.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <form method="post" class="panel form-grid">
                     <?= csrf_field() ?>
@@ -122,11 +151,11 @@ if ($route === 'register') {
                         </select>
                     </label>
                     <label>
-                        <span>Year / Semester</span>
-                        <select name="year_level" required>
-                            <option value="">Select year</option>
-                            <?php foreach (year_options() as $year): ?>
-                                <option value="<?= e($year) ?>"><?= e($year) ?></option>
+                        <span>Category</span>
+                        <select name="category" required>
+                            <option value="">Select category</option>
+                            <?php foreach (category_options() as $category): ?>
+                                <option value="<?= e($category) ?>"><?= e($category) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
@@ -153,6 +182,15 @@ if ($route === 'logout') {
 require_login();
 $currentUser = current_user();
 $isAdmin = is_admin();
+$isStaff = is_staff_user($currentUser);
+$canManageInventory = can_manage_inventory($currentUser);
+$inventorySearch = trim((string) ($_GET['q'] ?? ''));
+$staffTab = $_GET['tab'] ?? match ($route) {
+    'inventory' => 'complete-inventory',
+    'inventory-update' => 'inventory-update',
+    default => 'overview',
+};
+$editingInventory = $canManageInventory && isset($_GET['edit']) ? inventory_item_by_id((int) $_GET['edit']) : null;
 
 if ($route === 'users' && $isAdmin && $method === 'POST') {
     $payload = [
@@ -160,7 +198,7 @@ if ($route === 'users' && $isAdmin && $method === 'POST') {
         'email' => strtolower(trim((string) ($_POST['email'] ?? ''))),
         'password' => (string) ($_POST['password'] ?? ''),
         'department' => (string) ($_POST['department'] ?? ''),
-        'year_level' => (string) ($_POST['year_level'] ?? ''),
+        'year_level' => (string) ($_POST['category'] ?? ''),
         'enrollment_no' => trim((string) ($_POST['enrollment_no'] ?? '')),
         'phone' => trim((string) ($_POST['phone'] ?? '')),
         'role' => (string) ($_POST['role'] ?? 'student'),
@@ -168,43 +206,40 @@ if ($route === 'users' && $isAdmin && $method === 'POST') {
 
     try {
         create_user($payload);
-        flash('success', 'New user record successfully add ho gaya.');
+        flash('success', 'The new user record was added successfully.');
     } catch (Throwable $exception) {
-        flash('error', $exception->getMessage());
+        flash_exception('The user record could not be saved.', $exception, ['route' => 'users', 'email' => $payload['email']]);
     }
 
     redirect('users');
 }
 
-if ($route === 'inventory' && $isAdmin && $method === 'POST') {
-    $itemCode = trim((string) ($_POST['item_code'] ?? ''));
-    $itemName = trim((string) ($_POST['item_name'] ?? ''));
-    $category = (string) ($_POST['category'] ?? '');
-    $brand = trim((string) ($_POST['brand'] ?? ''));
-    $serial = trim((string) ($_POST['serial_number'] ?? ''));
-    $location = trim((string) ($_POST['location'] ?? ''));
-    $notes = trim((string) ($_POST['notes'] ?? ''));
+if ($route === 'inventory-save' && $canManageInventory && $method === 'POST') {
+    $inventoryId = (int) ($_POST['inventory_id'] ?? 0);
+    $payload = inventory_payload_from_form($_POST);
 
-    if ($itemCode === '' || $itemName === '' || $category === '') {
-        flash('error', 'Item code, item name, aur category required hain.');
-    } else {
-        try {
-            db()->prepare(
-                'INSERT INTO inventory_items (item_code, item_name, category, brand, serial_number, location, notes)
-                 VALUES (:item_code, :item_name, :category, :brand, :serial_number, :location, :notes)'
-            )->execute([
-                'item_code' => $itemCode,
-                'item_name' => $itemName,
-                'category' => $category,
-                'brand' => $brand,
-                'serial_number' => $serial,
-                'location' => $location,
-                'notes' => $notes,
-            ]);
-            flash('success', 'Inventory item add ho gaya.');
-        } catch (Throwable $exception) {
-            flash('error', 'Item save nahi hua. Duplicate item code ya invalid data ho sakta hai.');
-        }
+    try {
+        save_inventory_item($payload, $inventoryId > 0 ? $inventoryId : null);
+        flash('success', $inventoryId > 0 ? 'The inventory item was updated successfully.' : 'The inventory item was added successfully.');
+    } catch (Throwable $exception) {
+        flash_exception('The inventory item could not be saved.', $exception, [
+            'route' => 'inventory-save',
+            'inventory_id' => $inventoryId,
+            'invt_ctrl_no' => $payload['invt_ctrl_no'],
+        ]);
+    }
+
+    redirect('inventory-update');
+}
+
+if ($route === 'inventory-delete' && $canManageInventory && $method === 'POST') {
+    $inventoryId = (int) ($_POST['inventory_id'] ?? 0);
+
+    try {
+        delete_inventory_item($inventoryId);
+        flash('success', 'The inventory item was removed successfully.');
+    } catch (Throwable $exception) {
+        flash_exception('The inventory item could not be removed.', $exception, ['route' => 'inventory-delete', 'inventory_id' => $inventoryId]);
     }
 
     redirect('inventory');
@@ -213,9 +248,9 @@ if ($route === 'inventory' && $isAdmin && $method === 'POST') {
 if ($route === 'issue' && $isAdmin && $method === 'POST') {
     try {
         request_issue((int) ($_POST['item_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), (int) $currentUser['id']);
-        flash('success', 'Issue OTP student email par send kar diya gaya.');
+        flash('success', 'The issue OTP has been sent to the student email address.');
     } catch (Throwable $exception) {
-        flash('error', $exception->getMessage());
+        flash_exception('The issue request could not be created.', $exception, ['route' => 'issue']);
     }
 
     redirect('issue');
@@ -224,9 +259,9 @@ if ($route === 'issue' && $isAdmin && $method === 'POST') {
 if ($route === 'verify-issue' && $method === 'POST') {
     try {
         verify_issue_otp((int) ($_POST['transaction_id'] ?? 0), trim((string) ($_POST['otp'] ?? '')), (int) $currentUser['id']);
-        flash('success', 'OTP verified. Inventory successfully issued.');
+        flash('success', 'OTP verified. The inventory has been issued successfully.');
     } catch (Throwable $exception) {
-        flash('error', $exception->getMessage());
+        flash_exception('Issue OTP verification failed.', $exception, ['route' => 'verify-issue']);
     }
 
     redirect('dashboard');
@@ -235,9 +270,9 @@ if ($route === 'verify-issue' && $method === 'POST') {
 if ($route === 'request-return' && $method === 'POST') {
     try {
         request_return((int) ($_POST['transaction_id'] ?? 0), (int) $currentUser['id']);
-        flash('success', 'Return OTP aapke registered email par send kar diya gaya.');
+        flash('success', 'The return OTP has been sent to your registered email address.');
     } catch (Throwable $exception) {
-        flash('error', $exception->getMessage());
+        flash_exception('The return request could not be created.', $exception, ['route' => 'request-return']);
     }
 
     redirect('dashboard');
@@ -246,40 +281,40 @@ if ($route === 'request-return' && $method === 'POST') {
 if ($route === 'verify-return' && $method === 'POST') {
     try {
         verify_return_otp((int) ($_POST['transaction_id'] ?? 0), trim((string) ($_POST['otp'] ?? '')), (int) $currentUser['id']);
-        flash('success', 'Return OTP verified. Inventory available stock me wapas aa gayi.');
+        flash('success', 'Return OTP verified. The inventory item is now available again.');
     } catch (Throwable $exception) {
-        flash('error', $exception->getMessage());
+        flash_exception('Return OTP verification failed.', $exception, ['route' => 'verify-return']);
     }
 
     redirect('dashboard');
 }
 
-if ($route === 'csv-upload' && $isAdmin && $method === 'POST') {
+if ($route === 'csv-upload' && $canManageInventory && $method === 'POST') {
     try {
         import_inventory_csv($_FILES['csv_file'] ?? null);
-        flash('success', 'CSV import complete.');
+        flash('success', 'CSV import completed successfully.');
     } catch (Throwable $exception) {
-        flash('error', $exception->getMessage());
+        flash_exception('The CSV import failed.', $exception, ['route' => 'csv-upload']);
     }
 
-    redirect('inventory');
+    redirect('inventory-update');
 }
 
-$stats = dashboard_stats((int) $currentUser['id'], $isAdmin);
-$items = all_inventory_items();
+$stats = dashboard_stats((int) $currentUser['id'], $isAdmin || $isStaff);
+$items = $canManageInventory ? all_inventory_items($inventorySearch) : all_inventory_items();
 $students = student_users();
 $transactions = transactions_for_user((int) $currentUser['id'], $isAdmin);
 $pending = pending_issue_requests((int) $currentUser['id'], $isAdmin);
 $activeReturns = active_user_transactions((int) $currentUser['id']);
 
-render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $items, $students, $transactions, $pending, $activeReturns): void {
+render_page($route, function () use ($route, $currentUser, $isAdmin, $isStaff, $canManageInventory, $staffTab, $stats, $items, $students, $transactions, $pending, $activeReturns, $editingInventory, $inventorySearch): void {
     render_app_header(ucfirst(str_replace('-', ' ', $route)), $currentUser, $isAdmin);
     ?>
     <section class="hero-band">
         <div>
             <span class="eyebrow">Lab Operations</span>
-            <h1><?= e($isAdmin ? 'Advanced Inventory Control Panel' : 'Student Inventory Dashboard') ?></h1>
-            <p><?= e($isAdmin ? 'Students, assets, OTP approvals, and CSV imports ek hi portal me manage kijiye.' : 'Issued assets, pending OTP approvals, aur self-return workflow yahin se handle kijiye.') ?></p>
+            <h1><?= e($isStaff ? 'Staff Inventory Workspace' : 'Student Inventory Dashboard') ?></h1>
+            <p><?= e($isStaff ? 'Search the full inventory, upload CSV updates, edit records, and trace issues with debug-friendly responses.' : 'Track issued assets, complete OTP verification, and manage your return requests from one place.') ?></p>
         </div>
         <div class="quick-stats">
             <?php foreach ($stats as $label => $value): ?>
@@ -287,79 +322,130 @@ render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $it
             <?php endforeach; ?>
         </div>
     </section>
-    <?php if ($route === 'dashboard'): ?>
+    <?php if ($isStaff && in_array($route, ['dashboard', 'inventory', 'inventory-update'], true)): ?>
         <section class="content-grid">
-            <article class="panel">
-                <div class="panel-head"><h2><?= $isAdmin ? 'Recent Transactions' : 'My Inventory' ?></h2></div>
-                <div class="table-wrap">
-                    <table>
-                        <thead><tr><th>Item</th><?php if ($isAdmin): ?><th>User</th><?php endif; ?><th>Issue Status</th><th>Return Status</th><th>Issued On</th></tr></thead>
-                        <tbody>
-                            <?php foreach (array_slice($transactions, 0, 8) as $transaction): ?>
-                                <tr>
-                                    <td><?= e($transaction['item_name']) ?> <small><?= e($transaction['item_code']) ?></small></td>
-                                    <?php if ($isAdmin): ?><td><?= e($transaction['user_name']) ?></td><?php endif; ?>
-                                    <td><span class="pill"><?= e(labelize($transaction['issue_status'])) ?></span></td>
-                                    <td><span class="pill pill-light"><?= e(labelize($transaction['return_status'])) ?></span></td>
-                                    <td><?= e(format_date($transaction['issued_at'])) ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if ($transactions === []): ?><tr><td colspan="<?= $isAdmin ? '5' : '4' ?>">No transaction data yet.</td></tr><?php endif; ?>
-                        </tbody>
-                    </table>
+            <article class="panel full-width">
+                <div class="tab-strip">
+                    <a class="tab-chip <?= $staffTab === 'overview' ? 'active' : '' ?>" href="<?= route_url('dashboard') ?>">Overview</a>
+                    <a class="tab-chip <?= $staffTab === 'complete-inventory' ? 'active' : '' ?>" href="<?= route_url('inventory') ?>">Complete Inventory</a>
+                    <a class="tab-chip <?= $staffTab === 'inventory-update' ? 'active' : '' ?>" href="<?= route_url('inventory-update') ?>">Inventory Update</a>
                 </div>
             </article>
-            <article class="panel">
-                <div class="panel-head"><h2>Pending OTP Actions</h2></div>
-                <?php if ($pending === []): ?><p class="muted">Abhi koi pending OTP verification nahi hai.</p><?php endif; ?>
-                <?php foreach ($pending as $entry): ?>
-                    <div class="otp-card">
-                        <div>
-                            <strong><?= e($entry['item_name']) ?></strong>
-                            <p><?= e($entry['user_name']) ?> • <?= e(labelize($entry['issue_status'])) ?> / <?= e(labelize($entry['return_status'])) ?></p>
-                        </div>
-                        <?php if (!$isAdmin && $entry['issue_status'] === 'pending_otp'): ?>
-                            <form method="post" class="otp-form" action="<?= route_url('verify-issue') ?>">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="transaction_id" value="<?= e((string) $entry['id']) ?>">
-                                <input type="text" name="otp" maxlength="6" placeholder="Enter issue OTP" required>
-                                <button class="btn btn-primary">Verify Issue</button>
-                            </form>
-                        <?php elseif (!$isAdmin && $entry['return_status'] === 'otp_sent'): ?>
-                            <form method="post" class="otp-form" action="<?= route_url('verify-return') ?>">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="transaction_id" value="<?= e((string) $entry['id']) ?>">
-                                <input type="text" name="otp" maxlength="6" placeholder="Enter return OTP" required>
-                                <button class="btn btn-primary">Verify Return</button>
-                            </form>
-                        <?php else: ?>
-                            <p class="muted">Admin can monitor this request from the transaction history.</p>
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
-            </article>
-            <?php if (!$isAdmin): ?>
-                <article class="panel full-width">
-                    <div class="panel-head"><h2>Return Active Inventory</h2></div>
+            <?php if ($staffTab === 'overview'): ?>
+                <article class="panel">
+                    <div class="panel-head"><h2>Workspace Summary</h2></div>
                     <div class="list-stack">
-                        <?php foreach ($activeReturns as $transaction): ?>
-                            <div class="list-row">
-                                <div>
-                                    <strong><?= e($transaction['item_name']) ?></strong>
-                                    <p><?= e($transaction['item_code']) ?> • Issued <?= e(format_date($transaction['issued_at'])) ?></p>
-                                </div>
-                                <form method="post" action="<?= route_url('request-return') ?>">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="transaction_id" value="<?= e((string) $transaction['id']) ?>">
-                                    <button class="btn btn-secondary"><?= $transaction['return_status'] === 'otp_sent' ? 'Resend Return OTP' : 'Start Return' ?></button>
-                                </form>
-                            </div>
-                        <?php endforeach; ?>
-                        <?php if ($activeReturns === []): ?><p class="muted">Aapke paas abhi koi active issued item nahi hai.</p><?php endif; ?>
+                        <div class="list-row"><div><strong>Total visible inventory</strong><p><?= e((string) count($items)) ?> records available for search and review.</p></div></div>
+                        <div class="list-row"><div><strong>Search priority</strong><p>Results support inventory control number, item description, long description, item name, and item code.</p></div></div>
+                        <div class="list-row"><div><strong>Debug visibility</strong><p>Every failure writes a reference into `storage/debug.log` so issues can be traced quickly.</p></div></div>
                     </div>
+                </article>
+                <article class="panel">
+                    <div class="panel-head"><h2>Recent Inventory Records</h2></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Invt. Ctrl No</th><th>Item Description</th><th>Issued To</th><th>Status</th></tr></thead>
+                            <tbody>
+                                <?php foreach (array_slice($items, 0, 8) as $item): ?>
+                                    <tr>
+                                        <td><?= e($item['invt_ctrl_no'] ?: '-') ?></td>
+                                        <td><?= e($item['item_description'] ?: $item['item_name']) ?></td>
+                                        <td><?= e($item['issued_to'] ?: '-') ?></td>
+                                        <td><?= e(labelize($item['status'])) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                <?php if ($items === []): ?><tr><td colspan="4">No inventory records are available yet.</td></tr><?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            <?php elseif ($staffTab === 'complete-inventory'): ?>
+                <article class="panel full-width">
+                    <div class="panel-head"><h2>Complete Inventory Search</h2></div>
+                    <form method="get" class="search-bar">
+                        <input type="hidden" name="route" value="inventory">
+                        <input type="text" name="q" value="<?= e($inventorySearch) ?>" placeholder="Search by Invt. ctrl No, Item Description, Item Long Description, Item Code">
+                        <button type="submit" class="btn btn-primary">Search</button>
+                    </form>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Invt. Ctrl No</th><th>Item Description</th><th>Item Long Description</th><th>Item Code</th><th>Department</th><th>Issued To</th><th>Status</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($items as $item): ?>
+                                    <tr>
+                                        <td><?= e($item['invt_ctrl_no'] ?: '-') ?></td>
+                                        <td><?= e($item['item_description'] ?: $item['item_name']) ?></td>
+                                        <td><?= e(substr((string) ($item['item_long_description'] ?? ''), 0, 80)) ?></td>
+                                        <td><?= e($item['item_code']) ?></td>
+                                        <td><?= e($item['department_name'] ?: '-') ?></td>
+                                        <td><?= e($item['issued_to'] ?: '-') ?></td>
+                                        <td><?= e(labelize($item['status'])) ?></td>
+                                        <td>
+                                            <div class="action-inline">
+                                                <a class="btn btn-secondary btn-small" href="<?= route_url('inventory-update') ?>&edit=<?= e((string) $item['id']) ?>">Edit</a>
+                                                <form method="post" action="<?= route_url('inventory-delete') ?>">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="inventory_id" value="<?= e((string) $item['id']) ?>">
+                                                    <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                <?php if ($items === []): ?><tr><td colspan="8">No inventory records matched your search.</td></tr><?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            <?php else: ?>
+                <article class="panel">
+                    <div class="panel-head"><h2>CSV Inventory Update</h2></div>
+                    <form method="post" enctype="multipart/form-data" class="form-stack" action="<?= route_url('csv-upload') ?>">
+                        <?= csrf_field() ?>
+                        <label><span>Upload inventory CSV</span><input type="file" name="csv_file" accept=".csv" required></label>
+                        <button type="submit" class="btn btn-primary">Import and Update Inventory</button>
+                        <p class="muted">Expected headers include `Invt. ctrl No`, `Item Description`, `Item Long Description`, `Item Code`, and the related export columns. Import errors are logged with debug references.</p>
+                    </form>
+                    <div class="debug-card">
+                        <strong>Debugging</strong>
+                        <p>All handled exceptions are written to `storage/debug.log` with a reference code shown in the portal response.</p>
+                    </div>
+                </article>
+                <article class="panel">
+                    <div class="panel-head"><h2><?= $editingInventory ? 'Edit Inventory Item' : 'Add Inventory Item' ?></h2></div>
+                    <form method="post" class="form-grid" action="<?= route_url('inventory-save') ?>">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="inventory_id" value="<?= e((string) ($editingInventory['id'] ?? '')) ?>">
+                        <label><span>Invt. Ctrl No</span><input type="text" name="invt_ctrl_no" value="<?= e((string) ($editingInventory['invt_ctrl_no'] ?? '')) ?>" required></label>
+                        <label><span>Item Code</span><input type="text" name="item_code" value="<?= e((string) ($editingInventory['item_code'] ?? '')) ?>" required></label>
+                        <label><span>Item Description</span><input type="text" name="item_description" value="<?= e((string) ($editingInventory['item_description'] ?? '')) ?>" required></label>
+                        <label><span>Item Long Description</span><textarea name="item_long_description" rows="3"><?= e((string) ($editingInventory['item_long_description'] ?? '')) ?></textarea></label>
+                        <label><span>Department Name</span><input type="text" name="department_name" value="<?= e((string) ($editingInventory['department_name'] ?? '')) ?>"></label>
+                        <label><span>Issued To</span><input type="text" name="issued_to" value="<?= e((string) ($editingInventory['issued_to'] ?? '')) ?>"></label>
+                        <label><span>Issue Type</span><input type="text" name="issue_type" value="<?= e((string) ($editingInventory['issue_type'] ?? '')) ?>"></label>
+                        <label><span>Lab Code</span><input type="text" name="lab_code" value="<?= e((string) ($editingInventory['lab_code'] ?? '')) ?>"></label>
+                        <label><span>Quantity</span><input type="text" name="quantity" value="<?= e((string) ($editingInventory['quantity'] ?? '')) ?>"></label>
+                        <label><span>Unit</span><input type="text" name="unit" value="<?= e((string) ($editingInventory['unit'] ?? '')) ?>"></label>
+                        <label><span>Value</span><input type="text" name="value_text" value="<?= e((string) ($editingInventory['value_text'] ?? '')) ?>"></label>
+                        <label><span>Net Effective Value</span><input type="text" name="net_eff_value" value="<?= e((string) ($editingInventory['net_eff_value'] ?? '')) ?>"></label>
+                        <label><span>Status</span><select name="status"><option value="available" <?= (($editingInventory['status'] ?? '') === 'available') ? 'selected' : '' ?>>Available</option><option value="issued" <?= (($editingInventory['status'] ?? '') === 'issued') ? 'selected' : '' ?>>Issued</option><option value="maintenance" <?= (($editingInventory['status'] ?? '') === 'maintenance') ? 'selected' : '' ?>>Maintenance</option></select></label>
+                        <label><span>Location</span><input type="text" name="location" value="<?= e((string) ($editingInventory['location'] ?? '')) ?>"></label>
+                        <label><span>GIS No.</span><input type="text" name="gis_no" value="<?= e((string) ($editingInventory['gis_no'] ?? '')) ?>"></label>
+                        <label><span>GIS Date</span><input type="text" name="gis_date" value="<?= e((string) ($editingInventory['gis_date'] ?? '')) ?>"></label>
+                        <label><span>NC No.</span><input type="text" name="nc_no" value="<?= e((string) ($editingInventory['nc_no'] ?? '')) ?>"></label>
+                        <label><span>NC Date</span><input type="text" name="nc_date" value="<?= e((string) ($editingInventory['nc_date'] ?? '')) ?>"></label>
+                        <label><span>Source</span><input type="text" name="source_name" value="<?= e((string) ($editingInventory['source_name'] ?? '')) ?>"></label>
+                        <label><span>QR View</span><input type="text" name="qr_view" value="<?= e((string) ($editingInventory['qr_view'] ?? '')) ?>"></label>
+                        <label class="full-span"><span>Notes</span><textarea name="notes" rows="3"><?= e((string) ($editingInventory['notes'] ?? '')) ?></textarea></label>
+                        <div class="form-actions full-span">
+                            <button type="submit" class="btn btn-primary"><?= $editingInventory ? 'Update Inventory' : 'Save Inventory' ?></button>
+                            <?php if ($editingInventory): ?><a class="btn btn-secondary" href="<?= route_url('inventory-update') ?>">Cancel Editing</a><?php endif; ?>
+                        </div>
+                    </form>
                 </article>
             <?php endif; ?>
         </section>
+    <?php elseif ($route === 'dashboard'): ?>
     <?php elseif ($route === 'users' && $isAdmin): ?>
         <section class="content-grid admin-grid">
             <article class="panel">
@@ -371,7 +457,7 @@ render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $it
                     <label><span>Enrollment No.</span><input type="text" name="enrollment_no" required></label>
                     <label><span>Phone</span><input type="text" name="phone"></label>
                     <label><span>Department</span><select name="department" required><option value="">Select</option><?php foreach (department_options() as $department): ?><option value="<?= e($department) ?>"><?= e($department) ?></option><?php endforeach; ?></select></label>
-                    <label><span>Year</span><select name="year_level" required><option value="">Select</option><?php foreach (year_options() as $year): ?><option value="<?= e($year) ?>"><?= e($year) ?></option><?php endforeach; ?></select></label>
+                    <label><span>Category</span><select name="category" required><option value="">Select</option><?php foreach (category_options() as $category): ?><option value="<?= e($category) ?>"><?= e($category) ?></option><?php endforeach; ?></select></label>
                     <label><span>Role</span><select name="role"><option value="student">Student</option><option value="admin">Admin</option></select></label>
                     <label><span>Password</span><input type="password" name="password" minlength="8" required></label>
                     <div class="form-actions full-span"><button type="submit" class="btn btn-primary">Save User</button></div>
@@ -381,7 +467,7 @@ render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $it
                 <div class="panel-head"><h2>Registered Users</h2></div>
                 <div class="table-wrap">
                     <table>
-                        <thead><tr><th>Name</th><th>Department</th><th>Year</th><th>Role</th><th>Email</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Department</th><th>Category</th><th>Role</th><th>Email</th></tr></thead>
                         <tbody><?php foreach (all_users() as $user): ?><tr><td><?= e($user['name']) ?></td><td><?= e($user['department']) ?></td><td><?= e($user['year_level']) ?></td><td><?= e(ucfirst($user['role'])) ?></td><td><?= e($user['email']) ?></td></tr><?php endforeach; ?></tbody>
                     </table>
                 </div>
@@ -421,7 +507,7 @@ render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $it
                             <?php foreach ($items as $item): ?>
                                 <tr><td><?= e($item['item_code']) ?></td><td><?= e($item['item_name']) ?></td><td><?= e($item['category']) ?></td><td><?= e(labelize($item['status'])) ?></td><td><?= e($item['location']) ?></td></tr>
                             <?php endforeach; ?>
-                            <?php if ($items === []): ?><tr><td colspan="5">Inventory abhi add nahi hua hai.</td></tr><?php endif; ?>
+                            <?php if ($items === []): ?><tr><td colspan="5">No inventory has been added yet.</td></tr><?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -434,7 +520,7 @@ render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $it
                 <form method="post" class="form-grid">
                     <?= csrf_field() ?>
                     <label><span>Select Student</span><select name="user_id" required><option value="">Choose student</option><?php foreach ($students as $student): ?><option value="<?= e((string) $student['id']) ?>"><?= e($student['name']) ?> (<?= e($student['enrollment_no']) ?>)</option><?php endforeach; ?></select></label>
-                    <label><span>Select Item</span><select name="item_id" required><option value="">Choose available item</option><?php foreach (available_inventory_items() as $item): ?><option value="<?= e((string) $item['id']) ?>"><?= e($item['item_name']) ?> (<?= e($item['item_code']) ?>)</option><?php endforeach; ?></select></label>
+                    <label><span>Select Item</span><select name="item_id" required><option value="">Choose available item</option><?php foreach (available_inventory_items() as $item): ?><option value="<?= e((string) $item['id']) ?>"><?= e($item['item_description'] ?: $item['item_name']) ?> (<?= e($item['invt_ctrl_no'] ?: $item['item_code']) ?>)</option><?php endforeach; ?></select></label>
                     <div class="form-actions full-span"><button type="submit" class="btn btn-primary">Send Issue OTP</button></div>
                 </form>
             </article>
@@ -442,14 +528,14 @@ render_page($route, function () use ($route, $currentUser, $isAdmin, $stats, $it
                 <div class="panel-head"><h2>Issue Queue</h2></div>
                 <div class="list-stack">
                     <?php foreach ($pending as $entry): ?>
-                        <div class="list-row"><div><strong><?= e($entry['item_name']) ?></strong><p><?= e($entry['user_name']) ?> • <?= e($entry['user_email']) ?></p></div><span class="pill"><?= e(labelize($entry['issue_status'])) ?></span></div>
+                        <div class="list-row"><div><strong><?= e($entry['item_name']) ?></strong><p><?= e($entry['user_name']) ?> | <?= e($entry['user_email']) ?></p></div><span class="pill"><?= e(labelize($entry['issue_status'])) ?></span></div>
                     <?php endforeach; ?>
-                    <?php if ($pending === []): ?><p class="muted">Pending issue requests appear here.</p><?php endif; ?>
+                    <?php if ($pending === []): ?><p class="muted">Pending issue requests will appear here.</p><?php endif; ?>
                 </div>
             </article>
         </section>
     <?php else: ?>
-        <section class="panel"><h2>Page not available</h2><p class="muted">Requested route ya to restricted hai ya abhi setup nahi hua.</p></section>
+        <section class="panel"><h2>Page not available</h2><p class="muted">The requested route is either restricted or has not been set up yet.</p></section>
     <?php endif;
     render_footer();
 });

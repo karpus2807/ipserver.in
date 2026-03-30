@@ -15,15 +15,34 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS inventory_items (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    item_code VARCHAR(80) NOT NULL UNIQUE,
+    s_no VARCHAR(40) DEFAULT '',
+    item_code VARCHAR(80) NOT NULL,
     item_name VARCHAR(150) NOT NULL,
+    item_description VARCHAR(255) DEFAULT '',
+    item_long_description TEXT DEFAULT NULL,
     category VARCHAR(80) NOT NULL,
+    quantity VARCHAR(40) DEFAULT '',
+    unit VARCHAR(40) DEFAULT '',
+    value_text VARCHAR(120) DEFAULT '',
+    net_eff_value VARCHAR(120) DEFAULT '',
+    invt_ctrl_no VARCHAR(120) NOT NULL,
+    department_name VARCHAR(150) DEFAULT '',
+    issued_to VARCHAR(150) DEFAULT '',
+    issue_type VARCHAR(100) DEFAULT '',
+    lab_code VARCHAR(150) DEFAULT '',
+    gis_no VARCHAR(80) DEFAULT '',
+    gis_date VARCHAR(80) DEFAULT '',
+    nc_no VARCHAR(80) DEFAULT '',
+    nc_date VARCHAR(80) DEFAULT '',
+    source_name VARCHAR(120) DEFAULT '',
+    qr_view VARCHAR(120) DEFAULT '',
     brand VARCHAR(120) DEFAULT '',
     serial_number VARCHAR(120) DEFAULT '',
     status ENUM('available', 'issued', 'maintenance') NOT NULL DEFAULT 'available',
     location VARCHAR(120) DEFAULT '',
     notes TEXT DEFAULT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_inventory_invt_ctrl_no (invt_ctrl_no)
 );
 
 CREATE TABLE IF NOT EXISTS inventory_transactions (

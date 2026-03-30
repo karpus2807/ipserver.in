@@ -5,7 +5,7 @@ PHP + MySQL based lab portal for `ipserver.in` with session management, remember
 ## Core Features
 
 - Student self-registration with department/year dropdowns
-- Admin login plus automatic default admin seeding
+- Admin login support with manual admin account management
 - Secure session handling with optional remember-me cookie
 - Inventory register with status tracking
 - OTP-based inventory issue on student email
@@ -41,19 +41,6 @@ Set these on your hosting/server before deploy:
 - `DB_PASS=your_mysql_password`
 - `MAIL_FROM=noreply@ipserver.in`
 - `MAIL_ENABLED=true`
-- `ADMIN_NAME=Lab Administrator`
-- `ADMIN_EMAIL=admin@ipserver.in`
-- `ADMIN_PASSWORD=Admin@123`
-
-## Default Admin
-
-On first successful database boot, one admin is created automatically if no admin exists:
-
-- Email: value of `ADMIN_EMAIL`
-- Password: value of `ADMIN_PASSWORD`
-
-Change these server env values before production use.
-
 ## CSV Import Format
 
 Expected CSV headers:
@@ -89,4 +76,5 @@ Expected CSV headers:
 ## Notes
 
 - Database tables are auto-created from `database/schema.sql` on app boot.
+- Admin users must be created manually in the database or via an existing admin account.
 - `deploy.php` has been left untouched as requested.
