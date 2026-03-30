@@ -16,9 +16,9 @@ function app_config(): array
     $config = [
         'app_name' => getenv('APP_NAME') ?: 'Lab Inventory Portal',
         'base_url' => rtrim(getenv('APP_URL') ?: '', '/'),
-        'db_host' => getenv('DB_HOST') ?: '127.0.0.1',
+        'db_host' => getenv('DB_HOST') ?: 'localhost',
         'db_port' => getenv('DB_PORT') ?: '3306',
-        'db_name' => getenv('DB_NAME') ?: 'lab_inventory_portal',
+        'db_name' => getenv('DB_NAME') ?: 'ipserver_in',
         'db_user' => getenv('DB_USER') ?: 'ipserver_in',
         'db_pass' => getenv('DB_PASS') ?: 'Meena@ajay1507',
         'mail_from' => getenv('MAIL_FROM') ?: 'noreply@ipserver.in',
